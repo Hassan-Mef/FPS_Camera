@@ -105,15 +105,16 @@ void UpdatePlayer(Player &player, float dt)
     }
     
     // check for sprinting and apply speed boost
-    if (player.sprint)
-    {
-        player.maxSpeed = 8.0f; // increase max speed when sprinting
+    if(player.isGrounded){
+        if (player.sprint)
+        {
+            player.maxSpeed = 8.0f; // increase max speed when sprinting
+        }
+        else 
+        {
+            player.maxSpeed = 5.0f; // reset to normal max speed when not sprinting
+        }
     }
-    else 
-    {
-        player.maxSpeed = 5.0f; // reset to normal max speed when not sprinting
-    }
-
     // APPLY ACCELERATION (INPUT -> VELOCITY)
 
     // Choose ground or air control

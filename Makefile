@@ -17,7 +17,7 @@ LIBS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(SRC) Player/player.cpp -o $(TARGET) $(CXXFLAGS) $(LIBS)
+	$(CXX) $(SRC) Player/player.cpp HUD/HUD.cpp -o $(TARGET) $(CXXFLAGS) $(LIBS)
 
 # Run the game
 run: $(TARGET)

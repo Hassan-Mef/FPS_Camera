@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include "Environment/ground.h"
 #include "Player/player.h"
+#include "HUD/HUD.h"
 
 int main()
 {
@@ -36,6 +37,11 @@ int main()
 
         ClearBackground(SKYBLUE);
 
+        float speed = sqrtf(player.velocity.x * player.velocity.x +
+                    player.velocity.z * player.velocity.z);
+
+
+
         BeginMode3D(player.camera);
 
             //DrawGrid(20, 1.0f);  // temporary ground
@@ -45,11 +51,18 @@ int main()
             DrawCube({5,1,0}, 1,1,1, BLUE);
             DrawCube({-5,1,0}, 1,1,1, GREEN);
             DrawCube({0,1,5}, 1,1,1, YELLOW);
+            
 
             
         EndMode3D();
 
         DrawText("3D FPS Camera", 10, 10, 20, BLACK);
+
+        DrawMovementSpeed(speed);
+
+        // crosshair
+        DrawLine(screenWidth/2 - 10, screenHeight/2, screenWidth/2 + 10, screenHeight/2, BLACK);
+        DrawLine(screenWidth/2, screenHeight/2 - 10, screenWidth/2, screenHeight/2 + 10, BLACK);
 
         EndDrawing();
     }

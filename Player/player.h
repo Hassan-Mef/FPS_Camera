@@ -32,6 +32,15 @@ struct Player
 
     float yaw ;  // left right movement 
     float pitch;  // Up and donw movement 
+
+    // Camera effects 
+    float cameraRoll ; // for tilting camera when sliding 
+
+    float headBobTime;
+    float headBobAmount;
+
+
+    float baseFov;
 };
 
 Player InitPlayer();

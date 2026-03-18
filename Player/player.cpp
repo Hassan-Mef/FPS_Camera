@@ -40,17 +40,44 @@ Player InitPlayer()
     p.yaw = -90.0f;
     p.pitch = 0.0f;
 
+    // Camera effects
+    p.cameraRoll = 0.0f;
+    p.baseFov = 60.0f;
+
     return p;
 }
 
 
 void UpdatePlayer(Player &player, float dt)
 {
-    
-    // MOUSE LOOK (where player is looking)
+    // ================= VARIABLES  =================
 
     Vector2 mouseDelta = GetMouseDelta();
     float sensitivity = 0.1f;
+
+    Vector3 direction;
+    Vector3 forward;
+    Vector3 right;
+    Vector3 wishDir = {0};
+
+    float strafeAmount;
+    float targetRoll;
+    float accel;
+
+    Vector3 horizontalVel;
+    float speed;
+
+    float targetFov;
+    float bobSpeed;
+    float bobX, bobY;
+    float bobIntensity;
+    float targetBobSpeed;
+
+    float slideStartSpeed = 6.0f;
+
+    // ================= MOUSE LOOK =================
+
+    // MOUSE LOOK (where player is looking)
 
     player.yaw   += mouseDelta.x * sensitivity;
     player.pitch -= mouseDelta.y * sensitivity;
@@ -60,141 +87,121 @@ void UpdatePlayer(Player &player, float dt)
     if (player.pitch < -89.0f) player.pitch = -89.0f;
 
     // Convert yaw/pitch -> direction vector
-    Vector3 direction;
     direction.x = cosf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
     direction.y = sinf(DEG2RAD * player.pitch);
     direction.z = sinf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
 
     // Camera follows player
-    player.camera.position = player.position;
     player.camera.target = Vector3Add(player.position, direction);
 
 
+    // ================= MOVEMENT DIRECTIONS =================
+
     //  CREATE MOVEMENT DIRECTIONS (forward/right)
 
-
     // Ignore Y so player doesn't fly when looking up
-    Vector3 forward = { direction.x, 0.0f, direction.z };
+    forward = { direction.x, 0.0f, direction.z };
     forward = Vector3Normalize(forward);
 
-    Vector3 right = Vector3CrossProduct(forward, {0.0f, 1.0f, 0.0f});
+    right = Vector3CrossProduct(forward, {0.0f, 1.0f, 0.0f});
     right = Vector3Normalize(right);
 
-  
+
+    // ================= INPUT =================
+
     //  INPUT -> "WISH DIRECTION"
 
-    // This combines WASD into ONE direction
-    Vector3 wishDir = {0};
-
-    if (!player.isSliding) // can't change direction while sliding for a smoother slide
+    if (!player.isSliding)
     {
-
-    if (IsKeyDown(KEY_W)) wishDir = Vector3Add(wishDir, forward);
-    if (IsKeyDown(KEY_S)) wishDir = Vector3Subtract(wishDir, forward);
-    if (IsKeyDown(KEY_D)) wishDir = Vector3Add(wishDir, right);
-    if (IsKeyDown(KEY_A)) wishDir = Vector3Subtract(wishDir, right);
-    } else
+        if (IsKeyDown(KEY_W)) wishDir = Vector3Add(wishDir, forward);
+        if (IsKeyDown(KEY_S)) wishDir = Vector3Subtract(wishDir, forward);
+        if (IsKeyDown(KEY_D)) wishDir = Vector3Add(wishDir, right);
+        if (IsKeyDown(KEY_A)) wishDir = Vector3Subtract(wishDir, right);
+    }
+    else
     {
-        // if sliding, lock wishDir to slide direction for a smoother slide
         wishDir = player.slideDirection;
     }
 
-    // Normalize so diagonal isn't faster
     if (Vector3Length(wishDir) > 0)
     {
         wishDir = Vector3Normalize(wishDir);
     }
 
+    // Calculate Strafe Angle (for animation or later use)
+    strafeAmount = Vector3DotProduct(wishDir, right);
+
     // Check for sprint (hold left shift to go faster)
-    if(IsKeyDown(KEY_LEFT_SHIFT))
-    {
-        player.sprint = true;
-    }
-    else
-    {
-        player.sprint = false;
-    }
-    
-    // check for sprinting and apply speed boost
+    player.sprint = IsKeyDown(KEY_LEFT_SHIFT);
+
     if(player.isGrounded){
         if (player.sprint)
-        {
-            player.maxSpeed = 8.0f; // increase max speed when sprinting
-        }
+            player.maxSpeed = 8.0f;
         else 
-        {
-            player.maxSpeed = 5.0f; // reset to normal max speed when not sprinting
-        }
+            player.maxSpeed = 5.0f;
     }
 
+    // Calculate player Tilt (for sliding animation)
+    targetRoll = -strafeAmount * 1.5f;
+
+
+    // ================= MOVEMENT =================
 
     // APPLY ACCELERATION (INPUT -> VELOCITY)
 
     if(!player.isSliding)
     {
+        accel = player.isGrounded ? player.groundAccel : player.airAccel;
 
-    
-    // Choose ground or air control
-    float accel = player.isGrounded ? player.groundAccel : player.airAccel;
+        if (player.isGrounded)
+        {
+            player.velocity = Vector3Add(player.velocity, Vector3Scale(wishDir, accel * dt));
+        }
+        else
+        {
+            // AIR STRAFING LOGIC
 
-    if (player.isGrounded)
-    {
-        // Ground = normal acceleration (unchanged)
-        player.velocity = Vector3Add(player.velocity, Vector3Scale(wishDir, accel * dt));
-    }
-    else
-    {
+            horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
 
-    // AIR STRAFING LOGIC
+            float currentSpeed = Vector3DotProduct(horizontalVel, wishDir);
+            float alignment = currentSpeed / (Vector3Length(horizontalVel) + 0.0001f);
 
-    // Horizontal velocity only
-    Vector3 horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
+            float maxInfluence = 0.7f;
 
-    // Current speed in desired direction
-    float currentSpeed = Vector3DotProduct(horizontalVel, wishDir);
+            if (alignment < -maxInfluence)
+                alignment = -maxInfluence;
 
-    float alignment = currentSpeed / (Vector3Length(horizontalVel) + 0.0001f);
+            float airControlLimit = 6.5f;
+            float addSpeed = airControlLimit * (1.0f - alignment) - currentSpeed;
 
-    // Clamp alignment so extreme turns don't give huge boosts
-    float maxInfluence = 0.7f; // tweak (0.5 = strict, 0.9 = loose)
+            if (addSpeed > 0)
+            {
+                float airMaxSpeed = 7.0f;
+                float accelSpeed = accel * dt * airMaxSpeed;
 
-    if (alignment < -maxInfluence)
-    {
-        alignment = -maxInfluence;
-    }
+                if (accelSpeed > addSpeed)
+                    accelSpeed = addSpeed;
 
-    // Max speed we WANT in that direction
-    float airControlLimit = 6.5f; // tweak this
-
-    float addSpeed = airControlLimit * (1.0f - alignment) - currentSpeed;
-
-    if (addSpeed > 0)
-    {
-        float airMaxSpeed = 7.0f; // tweak this (start small)
-
-        float accelSpeed = accel * dt * airMaxSpeed;
-
-        if (accelSpeed > addSpeed)
-            accelSpeed = addSpeed;
-
-        player.velocity = Vector3Add(player.velocity, Vector3Scale(wishDir, accelSpeed));
-    }
-}
+                player.velocity = Vector3Add(player.velocity, Vector3Scale(wishDir, accelSpeed));
+            }
+        }
     }
 
+
+    // ================= FRICTION =================
 
     //  APPLY FRICTION (ONLY ON GROUND)
 
     if (player.isGrounded )
     {
-        if(!player.isSliding) // no friction while sliding for a smoother slide
+        if(!player.isSliding)
         {
             player.velocity.x -= player.velocity.x * player.friction * dt;
             player.velocity.z -= player.velocity.z * player.friction * dt;
         }
-        else // reduce friction while sliding for a smoother slide
+        else
         {
-            float slideFriction = player.friction * 0.2f; // tweak this (0.5 = half friction)
+            float slideFriction = player.friction * 0.2f;
 
             Vector3 horizontal = {player.velocity.x, 0.0f, player.velocity.z};
             horizontal = Vector3Scale(horizontal, 1.0f - slideFriction * dt);
@@ -205,32 +212,29 @@ void UpdatePlayer(Player &player, float dt)
     }
 
 
+    // ================= GRAVITY & JUMP =================
 
     //  APPLY GRAVITY
 
     player.velocity.y -= player.gravity * dt;
 
-
     // JUMP
 
     if (IsKeyPressed(KEY_SPACE) && player.isGrounded)
     {
-        player.velocity.y = player.jumpForce; // instant upward speed
+        player.velocity.y = player.jumpForce;
         player.isGrounded = false;
     }
 
 
+    // ================= SPEED =================
+
     // LIMIT HORIZONTAL SPEED
 
-
-    // Get horizontal velocity only
-    Vector3 horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
-
-    // Calculate speed
-    float speed = Vector3Length(horizontalVel);
+    horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
+    speed = Vector3Length(horizontalVel);
 
     if(player.isGrounded){
-        // Clamp if too fast
         if (speed > player.maxSpeed)
         {
             horizontalVel = Vector3Scale(Vector3Normalize(horizontalVel), player.maxSpeed);
@@ -240,33 +244,55 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
-    // make slide start speed limimt 
-    float slideStartSpeed = 6.0f; 
 
-    // IF (key pressed AND valid conditions)
-    //  START SLIDE
-    //  lock direction
-    //  store initial speed
-    //  set isSliding = true
+    // ================= CAMERA EFFECTS =================
+
+    // FOV based on speed
+    targetFov = player.baseFov + speed * 0.5f;
+
+
+    // ================= HEAD BOB =================
+
+    // Step-based rhythm (NOT speed-driven anymore)
+    targetBobSpeed = player.sprint ? 1.5f : 1.0f;
+
+    if (player.isGrounded && speed > 2.0f)
+    {
+        player.headBobTime += dt * targetBobSpeed;
+    }
+
+    // Subtle and stable bob
+    bobY = sinf(player.headBobTime * 6.0f) * 0.012f;   // slightly reduced
+    bobX = cosf(player.headBobTime * 3.0f) * 0.006f;   // even smaller
+
+
+    // Intensity scaling (clamped HARD)
+    bobIntensity = speed / player.maxSpeed;
+    if (bobIntensity > 0.4f) bobIntensity = 0.4f;
+
+
+    // ================= SLIDE =================
+
+    // Calculate target roll based on sliding
+    if (player.isSliding)
+    {
+        targetRoll *= 1.5f;
+        targetFov += 10.0f;
+    }
 
     if(IsKeyPressed(KEY_C) && player.isGrounded && speed > slideStartSpeed)
     {
-        
-    // calcuate slide direction and lock it (cant chnage direction while sliding)
         player.slideDirection = Vector3Normalize(horizontalVel);
 
         float slideBoost = 1.15f;
         float boostedSpeed = speed * slideBoost;
 
-        // set slide speed to current speed for a consistent slide
         player.velocity.x = player.slideDirection.x * boostedSpeed;
         player.velocity.z = player.slideDirection.z * boostedSpeed;
 
         player.isSliding = true;
     }
-    // IF (key released OR conditions no longer valid)
-    //  END SLIDE
-    //  set isSliding = false
+
     if(player.isSliding)
     {
         if(!IsKeyDown(KEY_C) || speed < 2.0f || !player.isGrounded)
@@ -275,7 +301,8 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
-    
+
+    // ================= POSITION =================
 
     // APPLY VELOCITY → POSITION
 
@@ -285,11 +312,41 @@ void UpdatePlayer(Player &player, float dt)
 
     // GROUND COLLISION
 
-
     if (player.position.y <= 2.0f)
     {
         player.position.y = 2.0f;
         player.velocity.y = 0;
         player.isGrounded = true;
     }
+
+
+    // ================= FINAL CAMERA =================
+
+    // Smoothly apply camera roll
+    player.cameraRoll += (targetRoll - player.cameraRoll) * 5.0f * dt;
+
+    player.camera.up.x = sinf(DEG2RAD * player.cameraRoll);
+    player.camera.up.y = cosf(DEG2RAD * player.cameraRoll);
+    player.camera.up.z = 0;
+
+    // // Apply head bob and FOV changes
+    //player.camera.position.x = player.position.x + bobX * bobIntensity;
+
+    // player.camera.position.x = player.position.x;
+    // player.camera.position.y = player.position.y + bobY * bobIntensity;
+    // player.camera.position.z = player.position.z;
+
+    //player.camera.fovy += (targetFov - player.camera.fovy) * 1.0f * dt;
+
+
+    // Stable camera follow
+    player.camera.position.x = player.position.x;
+    player.camera.position.z = player.position.z;
+
+    // Only vertical bob (clean feel)
+    player.camera.position.y = player.position.y + bobY * bobIntensity;
+
+
+    // Smooth FOV (IMPORTANT — re-enabled)
+    player.camera.fovy += (targetFov - player.camera.fovy) * 5.0f * dt;
 }

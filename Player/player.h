@@ -26,6 +26,9 @@ struct Player
     float maxSpeed; //  cap on speed
 
     bool sprint ;
+    bool isSliding; 
+
+    Vector3 slideDirection; // direction of slide when sliding
 
     float yaw ;  // left right movement 
     float pitch;  // Up and donw movement 

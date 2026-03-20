@@ -44,6 +44,8 @@ Player InitPlayer()
     p.cameraRoll = 0.0f;
     p.baseFov = 60.0f;
 
+    p.cameraHeightOffset = 0.0f;
+
     return p;
 }
 
@@ -55,9 +57,10 @@ void UpdatePlayer(Player &player, float dt)
     Vector2 mouseDelta = GetMouseDelta();
     float sensitivity = 0.1f;
 
-    Vector3 direction;
-    Vector3 forward;
-    Vector3 right;
+    Vector3 lookDir;       // camera look direction
+    Vector3 direction;     // temp for calculations
+    Vector3 forward;       // for movement
+    Vector3 right;         // for movement
     Vector3 wishDir = {0};
 
     float strafeAmount;
@@ -78,7 +81,6 @@ void UpdatePlayer(Player &player, float dt)
     // ================= MOUSE LOOK =================
 
     // MOUSE LOOK (where player is looking)
-
     player.yaw   += mouseDelta.x * sensitivity;
     player.pitch -= mouseDelta.y * sensitivity;
 
@@ -86,26 +88,22 @@ void UpdatePlayer(Player &player, float dt)
     if (player.pitch > 89.0f) player.pitch = 89.0f;
     if (player.pitch < -89.0f) player.pitch = -89.0f;
 
-    // Convert yaw/pitch -> direction vector
-    direction.x = cosf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
-    direction.y = sinf(DEG2RAD * player.pitch);
-    direction.z = sinf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
+    // Convert yaw/pitch -> look direction vector
+    lookDir.x = cosf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
+    lookDir.y = sinf(DEG2RAD * player.pitch);
+    lookDir.z = sinf(DEG2RAD * player.yaw) * cosf(DEG2RAD * player.pitch);
 
-    // Camera follows player
-    player.camera.target = Vector3Add(player.position, direction);
-
+    lookDir = Vector3Normalize(lookDir);   // normalize to be safe
 
     // ================= MOVEMENT DIRECTIONS =================
 
     //  CREATE MOVEMENT DIRECTIONS (forward/right)
-
     // Ignore Y so player doesn't fly when looking up
-    forward = { direction.x, 0.0f, direction.z };
+    forward = { cosf(DEG2RAD * player.yaw), 0.0f, sinf(DEG2RAD * player.yaw) };
     forward = Vector3Normalize(forward);
 
     right = Vector3CrossProduct(forward, {0.0f, 1.0f, 0.0f});
     right = Vector3Normalize(right);
-
 
     // ================= INPUT =================
 
@@ -144,11 +142,9 @@ void UpdatePlayer(Player &player, float dt)
     // Calculate player Tilt (for sliding animation)
     targetRoll = -strafeAmount * 1.5f;
 
-
     // ================= MOVEMENT =================
 
     // APPLY ACCELERATION (INPUT -> VELOCITY)
-
     if(!player.isSliding)
     {
         accel = player.isGrounded ? player.groundAccel : player.airAccel;
@@ -160,16 +156,13 @@ void UpdatePlayer(Player &player, float dt)
         else
         {
             // AIR STRAFING LOGIC
-
             horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
 
             float currentSpeed = Vector3DotProduct(horizontalVel, wishDir);
             float alignment = currentSpeed / (Vector3Length(horizontalVel) + 0.0001f);
 
             float maxInfluence = 0.7f;
-
-            if (alignment < -maxInfluence)
-                alignment = -maxInfluence;
+            if (alignment < -maxInfluence) alignment = -maxInfluence;
 
             float airControlLimit = 6.5f;
             float addSpeed = airControlLimit * (1.0f - alignment) - currentSpeed;
@@ -178,20 +171,16 @@ void UpdatePlayer(Player &player, float dt)
             {
                 float airMaxSpeed = 7.0f;
                 float accelSpeed = accel * dt * airMaxSpeed;
-
-                if (accelSpeed > addSpeed)
-                    accelSpeed = addSpeed;
+                if (accelSpeed > addSpeed) accelSpeed = addSpeed;
 
                 player.velocity = Vector3Add(player.velocity, Vector3Scale(wishDir, accelSpeed));
             }
         }
     }
 
-
     // ================= FRICTION =================
 
     //  APPLY FRICTION (ONLY ON GROUND)
-
     if (player.isGrounded )
     {
         if(!player.isSliding)
@@ -211,26 +200,21 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
-
     // ================= GRAVITY & JUMP =================
 
     //  APPLY GRAVITY
-
     player.velocity.y -= player.gravity * dt;
 
     // JUMP
-
     if (IsKeyPressed(KEY_SPACE) && player.isGrounded)
     {
         player.velocity.y = player.jumpForce;
         player.isGrounded = false;
     }
 
-
     // ================= SPEED =================
 
     // LIMIT HORIZONTAL SPEED
-
     horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
     speed = Vector3Length(horizontalVel);
 
@@ -244,16 +228,14 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
-
     // ================= CAMERA EFFECTS =================
 
     // FOV based on speed
-    targetFov = player.baseFov + speed * 0.5f;
-
+    targetFov = player.baseFov + speed * 1.5f;
 
     // ================= HEAD BOB =================
 
-    // Step-based rhythm (NOT speed-driven anymore)
+    // Step-based rhythm 
     targetBobSpeed = player.sprint ? 1.5f : 1.0f;
 
     if (player.isGrounded && speed > 2.0f)
@@ -265,11 +247,9 @@ void UpdatePlayer(Player &player, float dt)
     bobY = sinf(player.headBobTime * 6.0f) * 0.012f;   // slightly reduced
     bobX = cosf(player.headBobTime * 3.0f) * 0.006f;   // even smaller
 
-
     // Intensity scaling (clamped HARD)
     bobIntensity = speed / player.maxSpeed;
-    if (bobIntensity > 0.4f) bobIntensity = 0.4f;
-
+    if (bobIntensity > 0.3f) bobIntensity = 0.3f;
 
     // ================= SLIDE =================
 
@@ -301,17 +281,27 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
+    // ================= CAMERA SLIDE EFFECTS =================
+
+    // Slide camera height effect
+    float targetHeightOffset = 0.0f;
+
+    if (player.isSliding)
+    {
+        targetHeightOffset = -0.8f; // how low camera goes (tweak: -0.5 to -1.2)
+    }
+
+    // smooth transition (VERY IMPORTANT)
+    player.cameraHeightOffset += (targetHeightOffset - player.cameraHeightOffset) * 10.0f * dt;
 
     // ================= POSITION =================
 
     // APPLY VELOCITY → POSITION
-
     player.position.x += player.velocity.x * dt;
     player.position.y += player.velocity.y * dt;
     player.position.z += player.velocity.z * dt;
 
     // GROUND COLLISION
-
     if (player.position.y <= 2.0f)
     {
         player.position.y = 2.0f;
@@ -319,34 +309,27 @@ void UpdatePlayer(Player &player, float dt)
         player.isGrounded = true;
     }
 
-
     // ================= FINAL CAMERA =================
 
-    // Smoothly apply camera roll
-    player.cameraRoll += (targetRoll - player.cameraRoll) * 5.0f * dt;
+    // Base position (NO BOB)
+    Vector3 basePos = {
+        player.position.x,
+        player.position.y + player.cameraHeightOffset,
+        player.position.z
+    };
 
-    player.camera.up.x = sinf(DEG2RAD * player.cameraRoll);
-    player.camera.up.y = cosf(DEG2RAD * player.cameraRoll);
-    player.camera.up.z = 0;
+    // Apply bob ONLY to rendered position
+    Vector3 camPos = {
+        basePos.x,
+        basePos.y + bobY * bobIntensity,
+        basePos.z
+    };
 
-    // // Apply head bob and FOV changes
-    //player.camera.position.x = player.position.x + bobX * bobIntensity;
+    player.camera.position = camPos;
 
-    // player.camera.position.x = player.position.x;
-    // player.camera.position.y = player.position.y + bobY * bobIntensity;
-    // player.camera.position.z = player.position.z;
+    // Target should use BASE position + lookDir (stable!)
+    player.camera.target = Vector3Add(basePos, lookDir);
 
-    //player.camera.fovy += (targetFov - player.camera.fovy) * 1.0f * dt;
-
-
-    // Stable camera follow
-    player.camera.position.x = player.position.x;
-    player.camera.position.z = player.position.z;
-
-    // Only vertical bob (clean feel)
-    player.camera.position.y = player.position.y + bobY * bobIntensity;
-
-
-    // Smooth FOV (IMPORTANT — re-enabled)
-    player.camera.fovy += (targetFov - player.camera.fovy) * 5.0f * dt;
+    // Smooth FOV 
+    player.camera.fovy += (targetFov - player.camera.fovy) * 10.0f * dt;
 }

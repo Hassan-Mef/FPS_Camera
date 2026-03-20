@@ -40,7 +40,9 @@ int main()
         float speed = sqrtf(player.velocity.x * player.velocity.x +
                     player.velocity.z * player.velocity.z);
 
-
+        // adding camera height display for testing 
+        
+        
 
         BeginMode3D(player.camera);
 
@@ -51,12 +53,14 @@ int main()
             DrawCube({5,1,0}, 1,1,1, BLUE);
             DrawCube({-5,1,0}, 1,1,1, GREEN);
             DrawCube({0,1,5}, 1,1,1, YELLOW);
+            DrawCube({10,1, -5}, 1, 5 , 10 , PURPLE);
             
-
             
-        EndMode3D();
-
-        DrawText("3D FPS Camera", 10, 10, 20, BLACK);
+            
+            EndMode3D();
+            
+            DrawText("3D FPS Camera", 10, 10, 20, BLACK);
+            //DrawText(TextFormat("Camera Height Offset: %.2f", player.cameraHeightOffset), 10, 50, 20, BLACK);
 
         DrawMovementSpeed(speed);
 

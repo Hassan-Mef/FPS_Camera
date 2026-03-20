@@ -41,6 +41,7 @@ struct Player
 
 
     float baseFov;
+    float cameraHeightOffset;
 };
 
 Player InitPlayer();

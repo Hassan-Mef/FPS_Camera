@@ -6,6 +6,21 @@
 #include "raymath.h"
 #include <cmath>
 
+
+
+enum PlayerState
+{
+    IDLE,
+    WALKING,
+    SPRINTING,
+    JUMPING,
+    SLIDING,
+    CROUCHING,
+    FALLING
+};
+
+
+
 struct Player
 {
     Camera3D camera;
@@ -42,7 +57,11 @@ struct Player
 
     float baseFov;
     float cameraHeightOffset;
+
+    PlayerState state ;
+
 };
+
 
 Player InitPlayer();
 

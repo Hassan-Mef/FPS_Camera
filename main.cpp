@@ -60,7 +60,7 @@ int main()
             EndMode3D();
             
             DrawText("3D FPS Camera", 10, 10, 20, BLACK);
-            //DrawText(TextFormat("Camera Height Offset: %.2f", player.cameraHeightOffset), 10, 50, 20, BLACK);
+            //  DrawText(TextFormat("Camera Height Offset: %.2f", player.cameraHeightOffset), 10, 50, 20, BLACK);
 
         DrawMovementSpeed(speed);
 

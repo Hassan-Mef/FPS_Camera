@@ -105,6 +105,33 @@ void UpdatePlayer(Player &player, float dt)
     right = Vector3CrossProduct(forward, {0.0f, 1.0f, 0.0f});
     right = Vector3Normalize(right);
 
+    //  Player States 
+
+    if (player.isGrounded)
+    {
+        if (IsKeyDown(KEY_C) && speed > slideStartSpeed)
+            player.state = SLIDING;
+
+        else if (IsKeyDown(KEY_LEFT_SHIFT))
+            player.state = SPRINTING;
+
+        else if (Vector3Length(wishDir) > 0)
+            player.state = WALKING;
+
+        else
+            player.state = IDLE;
+    }
+    else
+    {
+        if (player.velocity.y > 0)
+            player.state = JUMPING;
+        else
+            player.state = FALLING;
+    }
+
+
+
+
     // ================= INPUT =================
 
     //  INPUT -> "WISH DIRECTION"
@@ -291,7 +318,7 @@ void UpdatePlayer(Player &player, float dt)
         targetHeightOffset = -0.8f; // how low camera goes (tweak: -0.5 to -1.2)
     }
 
-    // smooth transition (VERY IMPORTANT)
+    // smooth ptransition (VERY IMPORTANT)
     player.cameraHeightOffset += (targetHeightOffset - player.cameraHeightOffset) * 10.0f * dt;
 
     // ================= POSITION =================

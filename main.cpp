@@ -67,7 +67,7 @@ int main()
         // crosshair
         DrawLine(screenWidth/2 - 10, screenHeight/2, screenWidth/2 + 10, screenHeight/2, BLACK);
         DrawLine(screenWidth/2, screenHeight/2 - 10, screenWidth/2, screenHeight/2 + 10, BLACK);
-
+        DrawText(TextFormat("State: %d | BobTime: %.2f", player.state, player.headBobTime), 20, 50, 20, WHITE);
         EndDrawing();
     }
 

@@ -54,12 +54,17 @@ struct Player
     float headBobTime;
     float headBobAmount;
 
-
     float baseFov;
     float cameraHeightOffset;
 
     PlayerState state ;
 
+    // Crouch 
+
+    bool isCrouching;
+
+    float crouchHeight;      // how low camera goes
+    float crouchSpeed;       // movement speed while crouched
 };
 
 

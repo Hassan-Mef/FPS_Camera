@@ -105,33 +105,9 @@ void UpdatePlayer(Player &player, float dt)
     right = Vector3CrossProduct(forward, {0.0f, 1.0f, 0.0f});
     right = Vector3Normalize(right);
 
-    //  Player States 
 
-    if (player.isGrounded)
-    {
-        if (IsKeyDown(KEY_C) && speed > slideStartSpeed)
-            player.state = SLIDING;
-
-        else if (IsKeyDown(KEY_LEFT_SHIFT))
-            player.state = SPRINTING;
-
-        else if (Vector3Length(wishDir) > 0)
-            player.state = WALKING;
-
-        else
-            player.state = IDLE;
-    }
-    else
-    {
-        if (player.velocity.y > 0)
-            player.state = JUMPING;
-        else
-            player.state = FALLING;
-    }
-
-
-
-
+    
+    
     // ================= INPUT =================
 
     //  INPUT -> "WISH DIRECTION"
@@ -152,25 +128,25 @@ void UpdatePlayer(Player &player, float dt)
     {
         wishDir = Vector3Normalize(wishDir);
     }
-
+    
     // Calculate Strafe Angle (for animation or later use)
     strafeAmount = Vector3DotProduct(wishDir, right);
-
+    
     // Check for sprint (hold left shift to go faster)
     player.sprint = IsKeyDown(KEY_LEFT_SHIFT);
-
+    
     if(player.isGrounded){
         if (player.sprint)
-            player.maxSpeed = 8.0f;
+        player.maxSpeed = 8.0f;
         else 
-            player.maxSpeed = 5.0f;
+        player.maxSpeed = 5.0f;
     }
-
+    
     // Calculate player Tilt (for sliding animation)
     targetRoll = -strafeAmount * 1.5f;
-
+    
     // ================= MOVEMENT =================
-
+    
     // APPLY ACCELERATION (INPUT -> VELOCITY)
     if(!player.isSliding)
     {
@@ -184,16 +160,16 @@ void UpdatePlayer(Player &player, float dt)
         {
             // AIR STRAFING LOGIC
             horizontalVel = { player.velocity.x, 0.0f, player.velocity.z };
-
+            
             float currentSpeed = Vector3DotProduct(horizontalVel, wishDir);
             float alignment = currentSpeed / (Vector3Length(horizontalVel) + 0.0001f);
-
+            
             float maxInfluence = 0.7f;
             if (alignment < -maxInfluence) alignment = -maxInfluence;
-
+            
             float airControlLimit = 6.5f;
             float addSpeed = airControlLimit * (1.0f - alignment) - currentSpeed;
-
+            
             if (addSpeed > 0)
             {
                 float airMaxSpeed = 7.0f;
@@ -255,6 +231,34 @@ void UpdatePlayer(Player &player, float dt)
         }
     }
 
+
+    // ================= PLAYER STATE =================
+
+    if (player.isSliding)
+    {
+        player.state = SLIDING;
+    }
+    else if (!player.isGrounded)
+    {
+        if (player.velocity.y > 0)
+            player.state = JUMPING;
+        else
+            player.state = FALLING;
+    }
+    else
+    {
+        if (speed < 0.1f)
+            player.state = IDLE;
+
+        else if (player.sprint)
+            player.state = SPRINTING;
+
+        else
+            player.state = WALKING;
+    }
+
+
+
     // ================= CAMERA EFFECTS =================
 
     // FOV based on speed
@@ -262,17 +266,40 @@ void UpdatePlayer(Player &player, float dt)
 
     // ================= HEAD BOB =================
 
-    // Step-based rhythm 
-    targetBobSpeed = player.sprint ? 1.5f : 1.0f;
+    switch (player.state)
+    {
+        case SPRINTING: targetBobSpeed = 1.5f; break;
+        case WALKING:   targetBobSpeed = 1.0f; break;
+        default:        targetBobSpeed = 0.0f; break;
+    }
 
-    if (player.isGrounded && speed > 2.0f)
+
+    // Step-based rhythm 
+    if (player.state == WALKING || player.state == SPRINTING)
     {
         player.headBobTime += dt * targetBobSpeed;
     }
+    else
+    {
+        // VERY IMPORTANT → stabilize when not moving
+        player.headBobTime *= 0.9f;
+        // snap to zero when very small (prevents drifting)
+        if (fabs(player.headBobTime) < 0.001f)
+            player.headBobTime = 0.0f;
+    }
+    
 
     // Subtle and stable bob
-    bobY = sinf(player.headBobTime * 6.0f) * 0.012f;   // slightly reduced
-    bobX = cosf(player.headBobTime * 3.0f) * 0.006f;   // even smaller
+    if (player.state == WALKING || player.state == SPRINTING)
+    {
+        bobY = sinf(player.headBobTime * 6.0f) * 0.012f;
+        bobX = cosf(player.headBobTime * 3.0f) * 0.006f;
+    }
+    else
+    {
+        bobY = 0.0f;
+        bobX = 0.0f;
+    }
 
     // Intensity scaling (clamped HARD)
     bobIntensity = speed / player.maxSpeed;
